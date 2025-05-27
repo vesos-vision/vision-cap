@@ -15,7 +15,6 @@ def print_xyz(pkt):
 with OakCamera() as oak:
     # 1️⃣  cameras
     color  = oak.create_camera('color',  resolution='1080p', fps=5)
-    # stereo = oak.create_stereo('800p',   fps=30)       # must come *before* create_nn
 
     # 2️⃣  spatial YOLO
     nn = oak.create_nn(
@@ -27,7 +26,7 @@ with OakCamera() as oak:
     nn.config_nn(conf_threshold=0.8)            # set after creation
 
     # 3️⃣  outputs
-    # oak.visualize(nn, fps=True, scale=2/3)             # live video window
+    oak.visualize(nn, fps=True, scale=2/3)             # live video window
     oak.callback(nn, print_xyz)                        # console XYZ print-out
 
     oak.start(blocking=True)                           # press Q to quit

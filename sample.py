@@ -1,28 +1,33 @@
-import depthai as dai
+# depthai-sdk 1.15.1  ·  OAK-D S2  ·  spatial YOLOv8-Nano
+# --------------------------------------------------------
+from depthai_sdk import OakCamera
 
-p = dai.Pipeline()
 
-# Same stereo + YOLO graph you built before
-monoL = p.createMonoCamera(); monoR = p.createMonoCamera()
-for m,s in [(monoL, dai.CameraBoardSocket.LEFT),
-            (monoR, dai.CameraBoardSocket.RIGHT)]:
-    m.setResolution(dai.MonoCameraProperties.SensorResolution.THE_720_P)
-    m.setBoardSocket(s)
+def print_xyz(pkt):
+    for det in pkt.detections:
+        xyz = det.img_detection.spatialCoordinates          # present when spatial=True
+        print(f"{det.label_str:<12} {det.confidence:.2f}  "
+              f"X:{xyz.x/1000:.2f} m  "
+              f"Y:{xyz.y/1000:.2f} m  "
+              f"Z:{xyz.z/1000:.2f} m")
 
-stereo = p.createStereoDepth()
-monoL.out.link(stereo.left)
-monoR.out.link(stereo.right)
 
-yolo = p.createYoloSpatialDetectionNetwork()
-yolo.setBlobPath("yolov8n_openvino.blob")
-stereo.depth.link(yolo.inputDepth)
+with OakCamera() as oak:
+    # 1️⃣  cameras
+    color  = oak.create_camera('color',  resolution='1080p', fps=5)
+    # stereo = oak.create_stereo('800p',   fps=30)       # must come *before* create_nn
 
-# Send results to host
-xout = p.createXLinkOut(); xout.setStreamName("detections")
-yolo.out.link(xout.input)
+    # 2️⃣  spatial YOLO
+    nn = oak.create_nn(
+        model='yolov8n_coco_640x352',
+        input=color,
+        nn_type='yolo',
+        spatial=True               # <- **the only flag you need**
+    )
+    nn.config_nn(conf_threshold=0.8)            # set after creation
 
-with dai.Device(p) as dev:
-    q = dev.getOutputQueue("detections")
-    while True:
-        for det in q.get().detections:
-            print(f"{det.label} at {det.spatialCoordinates.z/1000:.2f} m")
+    # 3️⃣  outputs
+    # oak.visualize(nn, fps=True, scale=2/3)             # live video window
+    oak.callback(nn, print_xyz)                        # console XYZ print-out
+
+    oak.start(blocking=True)                           # press Q to quit
